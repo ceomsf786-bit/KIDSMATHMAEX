@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dynamic Math Quiz (Numeric Keypad + Timestamp)</title>
 <style>
+/* your existing CSS unchanged */
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px;}
 .container{max-width:800px;margin:0 auto;background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;}
@@ -78,12 +79,14 @@ button{padding:15px 30px;font-size:16px;font-weight:600;border:none;border-radiu
 </div>
 
 <script>
+// ---------- GLOBAL VARIABLES ----------
 let quizData = [];
 let elapsedSeconds = 0;
 let timerInterval = null;
 let currentQuizType = "mixed";
+const GOOGLE_SHEET_API = "YOUR_WEB_APP_URL_HERE"; // <--- REPLACE with your Google Apps Script Web App URL
 
-// Generate 20 random questions
+// ---------- QUIZ GENERATION ----------
 function generateRandomQuestions() {
   let types = currentQuizType === "mixed" ? ["add","subtract","multiply","divide"] : [currentQuizType];
   const questions = [];
@@ -110,7 +113,6 @@ function displayQuiz() {
       <div class="question-container">
         <div class="question-number">Question ${i + 1}</div>
         <div class="question">${q.question}</div>
-        <!-- ✅ Numeric keypad enabled -->
         <input type="number" inputmode="numeric" pattern="[0-9]*" class="exact-input" id="q${i}" placeholder="Enter number...">
         <div class="exact-answer-display" id="q${i}_ans"></div>
       </div>`;
@@ -118,6 +120,7 @@ function displayQuiz() {
   startTimer();
 }
 
+// ---------- TIMER ----------
 function startTimer() {
   elapsedSeconds = 0;
   document.getElementById("timerDisplay").classList.remove("hidden");
@@ -129,9 +132,34 @@ function startTimer() {
     document.getElementById("timerDisplay").textContent = `⏱️ 00:${m}:${s}`;
   }, 1000);
 }
-
 function stopTimer() { clearInterval(timerInterval); }
 
+// ---------- SEND TO GOOGLE SHEET ----------
+function submitQuizToSheet(studentName, quizData, elapsedSeconds, quizType) {
+  quizData.forEach((q, i) => {
+    const data = {
+      id: Date.now() + "_" + i,
+      username: studentName,
+      quiz_id: quizType,
+      question_id: i+1,
+      user_answer: document.getElementById(`q${i}`).value.trim() || "(no answer)",
+      correct_answer: q.exactAnswer,
+      score: document.getElementById(`q${i}`).value.trim() === q.exactAnswer ? 1 : 0,
+      timestamp: new Date().toISOString(),
+      time_taken_seconds: elapsedSeconds
+    };
+
+    fetch(GOOGLE_SHEET_API, {
+      method: "POST",
+      body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(resp => console.log("Saved to sheet:", resp))
+    .catch(err => console.error("Error saving to sheet:", err));
+  });
+}
+
+// ---------- SUBMIT QUIZ ----------
 function submitQuiz() {
   const name = document.getElementById("studentName").value.trim();
   if (!name) return alert("Please enter your name!");
@@ -154,8 +182,12 @@ function submitQuiz() {
   document.getElementById("explanation").innerHTML = `<strong>Name:</strong> ${name}<br><strong>Time:</strong> ${elapsedSeconds}s<br><strong>Mode:</strong> ${currentQuizType.toUpperCase()}`;
   document.getElementById("results").classList.add("show");
   document.getElementById("copyBtn").disabled = false;
+
+  // ---- SAVE TO GOOGLE SHEET ----
+  submitQuizToSheet(name, quizData, elapsedSeconds, currentQuizType);
 }
 
+// ---------- RESET & COPY ----------
 function resetQuiz() {
   document.getElementById("results").classList.remove("show");
   document.getElementById("copyBtn").disabled = true;
@@ -190,6 +222,7 @@ function copyResults() {
   });
 }
 
+// ---------- QUIZ SELECTION ----------
 function startQuiz(type) {
   currentQuizType = type;
   document.querySelectorAll(".quiz-btn").forEach(btn => btn.classList.remove("active"));
