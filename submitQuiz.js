@@ -34,10 +34,10 @@ function submitQuiz() {
 
         // Add to answers array for sheet
         answersArray.push({
-            question: q.question,
+            question: q.question,        // ✔ this is correct
             userAnswer: userAnswer,
-            correctAnswer: q.correct,
-            isCorrect: userAnswer === q.correct ? "YES" : "NO"
+            correctAnswer: q.exactAnswer,
+            isCorrect: userAnswer === q.exactAnswer ? "YES" : "NO"
         });
     });
 
