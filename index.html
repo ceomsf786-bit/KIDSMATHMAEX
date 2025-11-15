@@ -1,286 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dynamic Math Quiz (Numeric Keypad + Timestamp)</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dynamic Math Quiz</title>
 
 <style>
-/* your existing CSS unchanged */
+/* ------- SIMPLE CLEAN STYLE ------- */
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px;}
-.container{max-width:800px;margin:0 auto;background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;}
-.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:30px;text-align:center;}
-.timer-display{background:rgba(255,255,255,0.2);padding:15px 25px;border-radius:10px;margin-top:20px;font-size:24px;font-weight:bold;letter-spacing:2px;}
-.content{padding:30px;}
-.quiz-selector,.name-input-section,.question-container{margin-bottom:30px;padding:20px;background:#f8f9fa;border-radius:15px;border-left:5px solid #667eea;}
-.quiz-selector label,.name-input-section label{font-weight:600;margin-bottom:15px;display:block;color:#2d3748;font-size:18px;}
-.quiz-buttons{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
-.quiz-btn{padding:12px 18px;background:white;border:2px solid #667eea;border-radius:10px;cursor:pointer;transition:0.3s;font-size:16px;font-weight:600;color:#667eea;text-align:center;}
-.quiz-btn:hover{background:#667eea;color:white;transform:translateY(-2px);box-shadow:0 4px 12px rgba(102,126,234,0.3);}
-.quiz-btn.active{background:#667eea;color:white;}
-.name-input-section input{width:100%;padding:12px 15px;border:2px solid #e2e8f0;border-radius:10px;font-size:16px;}
-.name-input-section input:focus{outline:none;border-color:#667eea;}
-.question-number{color:#667eea;font-weight:bold;font-size:14px;margin-bottom:10px;}
-.question{font-size:18px;font-weight:600;margin-bottom:20px;color:#2d3748;}
-.exact-input{width:100%;padding:15px;border:2px solid #e2e8f0;border-radius:10px;font-size:16px;}
-.exact-input.correct{background:#d4edda;border-color:#28a745;}
-.exact-input.incorrect{background:#f8d7da;border-color:#dc3545;}
-.exact-answer-display{margin-top:10px;padding:10px 15px;background:#d4edda;border-left:4px solid #28a745;border-radius:8px;display:none;}
-.exact-answer-display.show{display:block;}
-.button-container{display:flex;gap:15px;margin-top:30px;flex-wrap:wrap;}
-button{padding:15px 30px;font-size:16px;font-weight:600;border:none;border-radius:10px;cursor:pointer;transition:0.3s;flex:1;min-width:150px;}
-.submit-btn{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;}
-.reset-btn{background:#6c757d;color:white;}
-.copy-btn{background:#28a745;color:white;}
-.results{margin-top:30px;padding:25px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border-radius:15px;text-align:center;display:none;}
-.results.show{display:block;}
-.toast{position:fixed;top:20px;right:20px;background:#28a745;color:white;padding:15px 25px;border-radius:10px;display:none;}
-.toast.show{display:block;}
-.hidden{display:none;}
+body{font-family:Arial,Helvetica,sans-serif;background:#eef2ff;padding:20px;}
+.container{max-width:800px;margin:auto;background:white;padding:25px;border-radius:12px;box-shadow:0 4px 25px rgba(0,0,0,0.15);}
+h1{text-align:center;margin-bottom:20px;}
+
+.quiz-btn{padding:12px;background:#4f46e5;color:white;border:none;border-radius:8px;cursor:pointer;margin:5px;}
+.quiz-btn.active{background:#4338ca;}
+
+.question-box{padding:15px;margin-top:15px;border:1px solid #ddd;border-radius:10px;}
+
+input.answer{
+  width:100%;
+  padding:12px;
+  margin-top:8px;
+  border:2px solid #ddd;
+  border-radius:8px;
+  font-size:18px;
+}
+
+.correct{background:#d4edda;border-color:#28a745;}
+.incorrect{background:#f8d7da;border-color:#dc3545;}
+
+button.submit-btn{
+  width:100%;
+  padding:15px;
+  margin-top:20px;
+  background:#4f46e5;
+  color:white;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  font-size:18px;
+}
+
+#results{
+  margin-top:20px;
+  padding:15px;
+  background:#4f46e5;
+  color:white;
+  border-radius:10px;
+  display:none;
+}
 </style>
 </head>
 
 <body>
-<div class="toast" id="toast">Results copied to clipboard!</div>
-
 <div class="container">
-  <div class="header">
-    <h1 id="quizTitle">Dynamic Math Quiz</h1>
-    <div class="timer-display hidden" id="timerDisplay">⏱️ 00:00:00</div>
-  </div>
 
-  <div class="content">
+<h1>Dynamic Math Quiz</h1>
 
-    <div class="quiz-selector" id="quizSelector">
-      <label>Select Quiz Type:</label>
-      <div class="quiz-buttons">
-        <button class="quiz-btn" onclick="startQuiz('add')">Addition (+)</button>
-        <button class="quiz-btn" onclick="startQuiz('subtract')">Subtraction (−)</button>
-        <button class="quiz-btn" onclick="startQuiz('multiply')">Multiplication (×)</button>
-        <button class="quiz-btn" onclick="startQuiz('divide')">Division (÷)</button>
-        <button class="quiz-btn" onclick="startQuiz('mixed')">Mixed</button>
-      </div>
-    </div>
-
-    <div class="name-input-section" id="nameSection">
-      <label for="studentName">Enter Your Name:</label>
-      <input type="text" id="studentName" placeholder="Your full name" autocomplete="name">
-    </div>
-
-    <div id="quizForm"></div>
-
-    <div class="button-container" id="actionButtons">
-      <button type="button" class="submit-btn" onclick="submitQuiz()">Submit Quiz</button>
-      <button type="button" class="reset-btn" onclick="resetQuiz()">Reset</button>
-      <button type="button" class="copy-btn" id="copyBtn" onclick="copyResults()" disabled>Copy Results</button>
-    </div>
-
-    <div class="results" id="results">
-      <h2>Quiz Results</h2>
-      <div class="score" id="scoreDisplay"></div>
-      <div class="feedback" id="feedback"></div>
-      <div class="explanation" id="explanation"></div>
-    </div>
-
-  </div>
+<!-- QUIZ TYPE -->
+<div>
+  <button class="quiz-btn" onclick="startQuiz('add')">Addition</button>
+  <button class="quiz-btn" onclick="startQuiz('subtract')">Subtraction</button>
+  <button class="quiz-btn" onclick="startQuiz('multiply')">Multiplication</button>
+  <button class="quiz-btn" onclick="startQuiz('divide')">Division</button>
+  <button class="quiz-btn" onclick="startQuiz('mixed')">Mixed</button>
 </div>
 
-<script>
-// ---------- GLOBAL VARIABLES ----------
-let quizData = [];
-let elapsedSeconds = 0;
-let timerInterval = null;
-let currentQuizType = "mixed";
+<!-- NAME -->
+<div style="margin-top:20px;">
+  <label>Your Name:</label>
+  <input type="text" id="studentName" placeholder="Enter your name" style="width:100%;padding:10px;font-size:16px;border-radius:8px;border:2px solid #ddd;">
+</div>
 
-const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbz0f6FskZzVIhsB7TPUWgFCZkwR43pVsK4-tLmoj08Q9hb7rmH0RVMOWUOcKb_eEZzO/exec"; 
-// 🔥 VERY IMPORTANT: Replace with YOUR OWN Apps Script Web App URL
+<!-- QUIZ RENDER -->
+<div id="quizArea"></div>
 
-// ---------- QUIZ GENERATION ----------
-function generateRandomQuestions() {
-  let types = currentQuizType === "mixed" ? ["add","subtract","multiply","divide"] : [currentQuizType];
-  const questions = [];
+<button class="submit-btn" onclick="submitQuiz()">Submit Quiz</button>
 
-  for (let i = 0; i < 20; i++) {
-    const type = types[Math.floor(Math.random() * types.length)];
-    const a = Math.floor(Math.random() * 12) + 1;
-    const b = Math.floor(Math.random() * 12) + 1;
+<div id="results"></div>
 
-    let question, answer;
+</div>
 
-    if (type === "add") { question = `${a} + ${b} = ?`; answer = a + b; }
-    else if (type === "subtract") { question = `${a} - ${b} = ?`; answer = a - b; }
-    else if (type === "multiply") { question = `${a} × ${b} = ?`; answer = a * b; }
-    else if (type === "divide") {
-      const product = a * b;
-      question = `${product} ÷ ${a} = ?`;
-      answer = b;
-    }
-
-    questions.push({ question, exactAnswer: answer.toString() });
-  }
-  return questions;
-}
-
-function displayQuiz() {
-  quizData = generateRandomQuestions();
-  const quizForm = document.getElementById("quizForm");
-  quizForm.innerHTML = "";
-
-  quizData.forEach((q, i) => {
-    quizForm.innerHTML += `
-      <div class="question-container">
-        <div class="question-number">Question ${i + 1}</div>
-        <div class="question">${q.question}</div>
-        <input type="number" class="exact-input" id="q${i}" placeholder="Enter number...">
-        <div class="exact-answer-display" id="q${i}_ans"></div>
-      </div>`;
-  });
-
-  startTimer();
-}
-
-// ---------- TIMER ----------
-function startTimer() {
-  elapsedSeconds = 0;
-  document.getElementById("timerDisplay").classList.remove("hidden");
-
-  if (timerInterval) clearInterval(timerInterval);
-
-  timerInterval = setInterval(() => {
-    elapsedSeconds++;
-    const m = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
-    const s = String(elapsedSeconds % 60).padStart(2, "0");
-    document.getElementById("timerDisplay").textContent = `⏱️ 00:${m}:${s}`;
-  }, 1000);
-}
-function stopTimer() { clearInterval(timerInterval); }
-
-// ---------- SEND TO GOOGLE SHEET ----------
-function submitQuizToSheet(studentName, quizData, elapsedSeconds, quizType, totalScore) {
-
-  const payload = {
-    name: studentName,
-    score: totalScore,
-    quizType: quizType,
-    timeTaken: elapsedSeconds,
-    answers: []
-  };
-
-  quizData.forEach((q, i) => {
-    const userAns = document.getElementById(`q${i}`).value.trim() || "(no answer)";
-    payload.answers.push({
-      questionNumber: i + 1,
-      questionText: q.question,
-      userAnswer: userAns,
-      correctAnswer: q.exactAnswer,
-      isCorrect: userAns === q.exactAnswer ? "YES" : "NO"
-    });
-  });
-
-  fetch(GOOGLE_SHEET_API, {
-    method: "POST",
-    body: JSON.stringify(payload)
-  })
-  .then(res => res.json())
-  .then(resp => console.log("Saved to sheet:", resp))
-  .catch(err => console.error("Error saving:", err));
-}
-
-// ---------- SUBMIT QUIZ ----------
-function submitQuiz() {
-  const name = document.getElementById("studentName").value.trim();
-  if (!name) return alert("Please enter your name!");
-
-  stopTimer();
-  let score = 0;
-
-  quizData.forEach((q, i) => {
-    const userAns = document.getElementById(`q${i}`).value.trim();
-    const inputBox = document.getElementById(`q${i}`);
-    const ansDiv = document.getElementById(`q${i}_ans`);
-
-    if (userAns === q.exactAnswer) {
-      score++;
-      inputBox.classList.add("correct");
-    } else {
-      inputBox.classList.add("incorrect");
-    }
-
-    ansDiv.textContent = "Correct Answer: " + q.exactAnswer;
-    ansDiv.classList.add("show");
-  });
-
-  const pct = Math.round((score / quizData.length) * 100);
-
-  document.getElementById("scoreDisplay").textContent =
-    `${score}/${quizData.length} (${pct}%)`;
-
-  document.getElementById("feedback").textContent =
-    pct >= 80 ? "Excellent!" :
-    pct >= 60 ? "Good!" :
-    "Keep practising!";
-
-  document.getElementById("explanation").innerHTML =
-    `<strong>Name:</strong> ${name}<br>
-     <strong>Time:</strong> ${elapsedSeconds}s<br>
-     <strong>Mode:</strong> ${currentQuizType.toUpperCase()}`;
-
-  document.getElementById("results").classList.add("show");
-  document.getElementById("copyBtn").disabled = false;
-
-  // ---- SAVE TO GOOGLE SHEET (FINAL VERSION) ----
-  submitQuizToSheet(name, quizData, elapsedSeconds, currentQuizType, score);
-}
-
-// ---------- RESET & COPY ----------
-function resetQuiz() {
-  document.getElementById("results").classList.remove("show");
-  document.getElementById("copyBtn").disabled = true;
-  displayQuiz();
-}
-
-function copyResults() {
-  const name = document.getElementById("studentName").value.trim();
-  const now = new Date();
-  const timestamp = now.toLocaleString();
-
-  let resultText =
-    `📘 Dynamic Math Quiz Results\n` +
-    `🗓️ Taken on: ${timestamp}\n` +
-    `👤 Name: ${name}\n` +
-    `🎯 Mode: ${currentQuizType.toUpperCase()}\n` +
-    `🕒 Time: ${elapsedSeconds}s\n\n`;
-
-  quizData.forEach((q, i) => {
-    const userAns = document.getElementById(`q${i}`).value.trim() || "(no answer)";
-    resultText +=
-      `Q${i+1}: ${q.question}\n` +
-      `Your Answer: ${userAns}\n` +
-      `Correct Answer: ${q.exactAnswer}\n\n`;
-  });
-
-  const scoreText = document.getElementById("scoreDisplay").innerText;
-  const feedback = document.getElementById("feedback").innerText;
-  resultText += `Final Score: ${scoreText}\n${feedback}\n`;
-
-  navigator.clipboard.writeText(resultText).then(() => {
-    const toast = document.getElementById("toast");
-    toast.classList.add("show");
-    setTimeout(() => toast.classList.remove("show"), 2000);
-  });
-}
-
-// ---------- QUIZ SELECTION ----------
-function startQuiz(type) {
-  currentQuizType = type;
-  document.querySelectorAll(".quiz-btn").forEach(btn => btn.classList.remove("active"));
-  event.target.classList.add("active");
-  displayQuiz();
-}
-
-displayQuiz();
-</script>
+<!-- external script -->
+<script src="submitquiz.js"></script>
 
 </body>
 </html>
