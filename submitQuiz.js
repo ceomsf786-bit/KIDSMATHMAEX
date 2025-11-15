@@ -1,7 +1,7 @@
 // ================================
 // CHANGE THIS TO YOUR WEB APP URL
 // ================================
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbybVM4Vpxo_zGdrsPDarJVosiA440jHX8lY9ZPpegmZEWxtKw41qey96NLezCkOhKI/exec";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz0f6FskZzVIhsB7TPUWgFCZkwR43pVsK4-tLmoj08Q9hb7rmH0RVMOWUOcKb_eEZzO/exec";
 
 
 // Submit quiz data to Google Sheet
