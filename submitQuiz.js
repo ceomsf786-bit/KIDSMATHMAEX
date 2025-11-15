@@ -3,6 +3,8 @@
 // ================================
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbybVM4Vpxo_zGdrsPDarJVosiA440jHX8lY9ZPpegmZEWxtKw41qey96NLezCkOhKI/exec";
 
+
+// Submit quiz data to Google Sheet
 function submitQuiz() {
     const name = document.getElementById("studentName").value.trim();
     if (!name) {
@@ -10,48 +12,45 @@ function submitQuiz() {
         return;
     }
 
-    // Collect all questions in quizData (this must exist in your quiz)
-    // Example quizData format:
-    // quizData = [
-    //   { question: "2 + 2 = ?", correct: "4" },
-    //   { question: "3 + 5 = ?", correct: "8" }
-    // ];
+    // Check if quizData exists
     if (typeof quizData === "undefined") {
         alert("quizData is missing!");
         return;
     }
 
     let answersArray = [];
-    let score = 0;
+    let totalScore = 0;
 
-    // Collect user answers from inputs like <input name="q0">, <input name="q1"> ...
-    quizData.forEach((q, index) => {
-        const selected = document.querySelector(`input[name="q${index}"]:checked`);
-        const userAnswer = selected ? selected.value : "";
+    // Loop through each question
+    quizData.forEach((q, i) => {
+        const userAnswer = document.getElementById(`q${i}`).value.trim() || "(no answer)";
+        const isCorrect = userAnswer === q.exactAnswer ? "YES" : "NO";
 
-        // Score count
-        if (userAnswer === q.correct) score++;
+        if (isCorrect === "YES") totalScore++;
 
-        // Add to answers array for sheet
         answersArray.push({
-            question: q.question,        // ✔ this is correct
-            userAnswer: userAnswer,
-            correctAnswer: q.exactAnswer,
-            isCorrect: userAnswer === q.exactAnswer ? "YES" : "NO"
+            question: q.question,        // Question text
+            userAnswer: userAnswer,      // What student entered
+            correctAnswer: q.exactAnswer, // Correct answer
+            isCorrect: isCorrect
         });
     });
 
-    // Prepare data to send
+    // Prepare payload to send
     const payload = {
         name: name,
-        score: score,
-        answers: answersArray
+        totalScore: totalScore,
+        answers: answersArray,
+        timestamp: new Date().toISOString()
     };
 
-    // Send to Google Sheets
+    // DEBUG: Uncomment to check payload before sending
+    // console.log(payload);
+
+    // Send data to Google Sheets
     fetch(WEB_APP_URL, {
         method: "POST",
-        mode: "no-cors",
+        mode: "no-cors",   // allows sending to sheet without CORS issues
         headers: {
             "Content-Type": "application/json"
         },
@@ -61,7 +60,7 @@ function submitQuiz() {
         alert("Your quiz was submitted successfully!");
     })
     .catch(err => {
-        console.error("Submit error:", err);
-        alert("Something went wrong submitting your quiz.");
+        console.error("Error submitting quiz:", err);
+        alert("Something went wrong while submitting your quiz.");
     });
 }
