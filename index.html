@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dynamic Math Quiz (Numeric Keypad + Timestamp)</title>
+
 <style>
 /* your existing CSS unchanged */
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -39,8 +40,10 @@ button{padding:15px 30px;font-size:16px;font-weight:600;border:none;border-radiu
 .hidden{display:none;}
 </style>
 </head>
+
 <body>
 <div class="toast" id="toast">Results copied to clipboard!</div>
+
 <div class="container">
   <div class="header">
     <h1 id="quizTitle">Dynamic Math Quiz</h1>
@@ -48,6 +51,7 @@ button{padding:15px 30px;font-size:16px;font-weight:600;border:none;border-radiu
   </div>
 
   <div class="content">
+
     <div class="quiz-selector" id="quizSelector">
       <label>Select Quiz Type:</label>
       <div class="quiz-buttons">
@@ -63,18 +67,22 @@ button{padding:15px 30px;font-size:16px;font-weight:600;border:none;border-radiu
       <label for="studentName">Enter Your Name:</label>
       <input type="text" id="studentName" placeholder="Your full name" autocomplete="name">
     </div>
+
     <div id="quizForm"></div>
+
     <div class="button-container" id="actionButtons">
       <button type="button" class="submit-btn" onclick="submitQuiz()">Submit Quiz</button>
       <button type="button" class="reset-btn" onclick="resetQuiz()">Reset</button>
       <button type="button" class="copy-btn" id="copyBtn" onclick="copyResults()" disabled>Copy Results</button>
     </div>
+
     <div class="results" id="results">
       <h2>Quiz Results</h2>
       <div class="score" id="scoreDisplay"></div>
       <div class="feedback" id="feedback"></div>
       <div class="explanation" id="explanation"></div>
     </div>
+
   </div>
 </div>
 
@@ -84,21 +92,31 @@ let quizData = [];
 let elapsedSeconds = 0;
 let timerInterval = null;
 let currentQuizType = "mixed";
-const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbz77BFwiEeIQ6tIl4UF3QVGXUCzxPIVebOkolrGkKkL--LK58MZkgWnnbvuz08Sw6mC/exec"; // <--- REPLACE with your Google Apps Script Web App URL
+
+const GOOGLE_SHEET_API = "YOUR_WEB_APP_URL_HERE"; 
+// 🔥 VERY IMPORTANT: Replace with YOUR OWN Apps Script Web App URL
 
 // ---------- QUIZ GENERATION ----------
 function generateRandomQuestions() {
   let types = currentQuizType === "mixed" ? ["add","subtract","multiply","divide"] : [currentQuizType];
   const questions = [];
+
   for (let i = 0; i < 20; i++) {
     const type = types[Math.floor(Math.random() * types.length)];
     const a = Math.floor(Math.random() * 12) + 1;
     const b = Math.floor(Math.random() * 12) + 1;
+
     let question, answer;
+
     if (type === "add") { question = `${a} + ${b} = ?`; answer = a + b; }
     else if (type === "subtract") { question = `${a} - ${b} = ?`; answer = a - b; }
     else if (type === "multiply") { question = `${a} × ${b} = ?`; answer = a * b; }
-    else if (type === "divide") { const product = a * b; question = `${product} ÷ ${a} = ?`; answer = b; }
+    else if (type === "divide") {
+      const product = a * b;
+      question = `${product} ÷ ${a} = ?`;
+      answer = b;
+    }
+
     questions.push({ question, exactAnswer: answer.toString() });
   }
   return questions;
@@ -108,15 +126,17 @@ function displayQuiz() {
   quizData = generateRandomQuestions();
   const quizForm = document.getElementById("quizForm");
   quizForm.innerHTML = "";
+
   quizData.forEach((q, i) => {
     quizForm.innerHTML += `
       <div class="question-container">
         <div class="question-number">Question ${i + 1}</div>
         <div class="question">${q.question}</div>
-        <input type="number" inputmode="numeric" pattern="[0-9]*" class="exact-input" id="q${i}" placeholder="Enter number...">
+        <input type="number" class="exact-input" id="q${i}" placeholder="Enter number...">
         <div class="exact-answer-display" id="q${i}_ans"></div>
       </div>`;
   });
+
   startTimer();
 }
 
@@ -124,7 +144,9 @@ function displayQuiz() {
 function startTimer() {
   elapsedSeconds = 0;
   document.getElementById("timerDisplay").classList.remove("hidden");
+
   if (timerInterval) clearInterval(timerInterval);
+
   timerInterval = setInterval(() => {
     elapsedSeconds++;
     const m = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
@@ -135,28 +157,34 @@ function startTimer() {
 function stopTimer() { clearInterval(timerInterval); }
 
 // ---------- SEND TO GOOGLE SHEET ----------
-function submitQuizToSheet(studentName, quizData, elapsedSeconds, quizType) {
-  quizData.forEach((q, i) => {
-    const data = {
-      id: Date.now() + "_" + i,
-      username: studentName,
-      quiz_id: quizType,
-      question_id: i+1,
-      user_answer: document.getElementById(`q${i}`).value.trim() || "(no answer)",
-      correct_answer: q.exactAnswer,
-      score: document.getElementById(`q${i}`).value.trim() === q.exactAnswer ? 1 : 0,
-      timestamp: new Date().toISOString(),
-      time_taken_seconds: elapsedSeconds
-    };
+function submitQuizToSheet(studentName, quizData, elapsedSeconds, quizType, totalScore) {
 
-    fetch(GOOGLE_SHEET_API, {
-      method: "POST",
-      body: JSON.stringify(data)
-    })
-    .then(res => res.json())
-    .then(resp => console.log("Saved to sheet:", resp))
-    .catch(err => console.error("Error saving to sheet:", err));
+  const payload = {
+    name: studentName,
+    score: totalScore,
+    quizType: quizType,
+    timeTaken: elapsedSeconds,
+    answers: []
+  };
+
+  quizData.forEach((q, i) => {
+    const userAns = document.getElementById(`q${i}`).value.trim() || "(no answer)";
+    payload.answers.push({
+      questionNumber: i + 1,
+      questionText: q.question,
+      userAnswer: userAns,
+      correctAnswer: q.exactAnswer,
+      isCorrect: userAns === q.exactAnswer ? "YES" : "NO"
+    });
   });
+
+  fetch(GOOGLE_SHEET_API, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  })
+  .then(res => res.json())
+  .then(resp => console.log("Saved to sheet:", resp))
+  .catch(err => console.error("Error saving:", err));
 }
 
 // ---------- SUBMIT QUIZ ----------
@@ -166,25 +194,43 @@ function submitQuiz() {
 
   stopTimer();
   let score = 0;
+
   quizData.forEach((q, i) => {
     const userAns = document.getElementById(`q${i}`).value.trim();
     const inputBox = document.getElementById(`q${i}`);
     const ansDiv = document.getElementById(`q${i}_ans`);
-    if (userAns === q.exactAnswer) { score++; inputBox.classList.add("correct"); }
-    else { inputBox.classList.add("incorrect"); }
+
+    if (userAns === q.exactAnswer) {
+      score++;
+      inputBox.classList.add("correct");
+    } else {
+      inputBox.classList.add("incorrect");
+    }
+
     ansDiv.textContent = "Correct Answer: " + q.exactAnswer;
     ansDiv.classList.add("show");
   });
 
   const pct = Math.round((score / quizData.length) * 100);
-  document.getElementById("scoreDisplay").textContent = `${score}/${quizData.length} (${pct}%)`;
-  document.getElementById("feedback").textContent = pct >= 80 ? "Excellent!" : pct >= 60 ? "Good!" : "Keep practising!";
-  document.getElementById("explanation").innerHTML = `<strong>Name:</strong> ${name}<br><strong>Time:</strong> ${elapsedSeconds}s<br><strong>Mode:</strong> ${currentQuizType.toUpperCase()}`;
+
+  document.getElementById("scoreDisplay").textContent =
+    `${score}/${quizData.length} (${pct}%)`;
+
+  document.getElementById("feedback").textContent =
+    pct >= 80 ? "Excellent!" :
+    pct >= 60 ? "Good!" :
+    "Keep practising!";
+
+  document.getElementById("explanation").innerHTML =
+    `<strong>Name:</strong> ${name}<br>
+     <strong>Time:</strong> ${elapsedSeconds}s<br>
+     <strong>Mode:</strong> ${currentQuizType.toUpperCase()}`;
+
   document.getElementById("results").classList.add("show");
   document.getElementById("copyBtn").disabled = false;
 
-  // ---- SAVE TO GOOGLE SHEET ----
-  submitQuizToSheet(name, quizData, elapsedSeconds, currentQuizType);
+  // ---- SAVE TO GOOGLE SHEET (FINAL VERSION) ----
+  submitQuizToSheet(name, quizData, elapsedSeconds, currentQuizType, score);
 }
 
 // ---------- RESET & COPY ----------
@@ -198,17 +244,20 @@ function copyResults() {
   const name = document.getElementById("studentName").value.trim();
   const now = new Date();
   const timestamp = now.toLocaleString();
-  let resultText = `📘 Dynamic Math Quiz Results\n`;
-  resultText += `🗓️ Taken on: ${timestamp}\n`;
-  resultText += `👤 Name: ${name}\n`;
-  resultText += `🎯 Mode: ${currentQuizType.toUpperCase()}\n`;
-  resultText += `🕒 Time: ${elapsedSeconds}s\n\n`;
+
+  let resultText =
+    `📘 Dynamic Math Quiz Results\n` +
+    `🗓️ Taken on: ${timestamp}\n` +
+    `👤 Name: ${name}\n` +
+    `🎯 Mode: ${currentQuizType.toUpperCase()}\n` +
+    `🕒 Time: ${elapsedSeconds}s\n\n`;
 
   quizData.forEach((q, i) => {
     const userAns = document.getElementById(`q${i}`).value.trim() || "(no answer)";
-    resultText += `Q${i+1}: ${q.question.replace('=?','')}?\n`;
-    resultText += `Your Answer: ${userAns}\n`;
-    resultText += `Correct Answer: ${q.exactAnswer}\n\n`;
+    resultText +=
+      `Q${i+1}: ${q.question}\n` +
+      `Your Answer: ${userAns}\n` +
+      `Correct Answer: ${q.exactAnswer}\n\n`;
   });
 
   const scoreText = document.getElementById("scoreDisplay").innerText;
@@ -232,5 +281,6 @@ function startQuiz(type) {
 
 displayQuiz();
 </script>
+
 </body>
 </html>
