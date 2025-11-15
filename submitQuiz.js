@@ -2,7 +2,7 @@
 let quizData = [];
 let currentType = "mixed";
 
-const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyK53ZXPHkXNMTCTN8gs1LlM7D9JFCw2zzqL5ro0RnUv5iOwer6tdNUfR-DxX4JTr8/exec";
+const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyeb1es1ZaGXWWE8LRqPwkBbnywsmxE8CdMzdBNLOBjwAUY2A-NP4ND_3HXr8QY1t02/exec";
 
 // ---------------- QUIZ GENERATOR ----------------
 function generateQuestions() {
