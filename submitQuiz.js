@@ -1,66 +1,115 @@
-// ================================
-// CHANGE THIS TO YOUR WEB APP URL
-// ================================
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz0f6FskZzVIhsB7TPUWgFCZkwR43pVsK4-tLmoj08Q9hb7rmH0RVMOWUOcKb_eEZzO/exec";
+// ---------------- GLOBALS ----------------
+let quizData = [];
+let currentType = "mixed";
 
+const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycby-iBMZSp6b5XDABrg58wjmhnXdpfsSi3KRLNYSryXPfrcVQqhsp1YpnRQGNaldu4SU/exec";
 
-// Submit quiz data to Google Sheet
-function submitQuiz() {
-    const name = document.getElementById("studentName").value.trim();
-    if (!name) {
-        alert("Please enter your name before submitting.");
-        return;
+// ---------------- QUIZ GENERATOR ----------------
+function generateQuestions() {
+  const types = currentType === "mixed"
+    ? ["add","subtract","multiply","divide"]
+    : [currentType];
+
+  const arr = [];
+
+  for (let i = 0; i < 20; i++) {
+    const type = types[Math.floor(Math.random() * types.length)];
+    let a = Math.floor(Math.random() * 12) + 1;
+    let b = Math.floor(Math.random() * 12) + 1;
+
+    let question, correct;
+
+    if (type === "add") {
+      question = `${a} + ${b}`;
+      correct = a + b;
+    }
+    else if (type === "subtract") {
+      question = `${a} - ${b}`;
+      correct = a - b;
+    }
+    else if (type === "multiply") {
+      question = `${a} × ${b}`;
+      correct = a * b;
+    }
+    else {
+      let product = a * b;
+      question = `${product} ÷ ${a}`;
+      correct = b;
     }
 
-    // Check if quizData exists
-    if (typeof quizData === "undefined") {
-        alert("quizData is missing!");
-        return;
-    }
-
-    let answersArray = [];
-    let totalScore = 0;
-
-    // Loop through each question
-    quizData.forEach((q, i) => {
-        const userAnswer = document.getElementById(`q${i}`).value.trim() || "(no answer)";
-        const isCorrect = userAnswer === q.exactAnswer ? "YES" : "NO";
-
-        if (isCorrect === "YES") totalScore++;
-
-        answersArray.push({
-            question: q.question,        // Question text
-            userAnswer: userAnswer,      // What student entered
-            correctAnswer: q.exactAnswer, // Correct answer
-            isCorrect: isCorrect
-        });
-    });
-
-    // Prepare payload to send
-    const payload = {
-        name: name,
-        totalScore: totalScore,
-        answers: answersArray,
-        timestamp: new Date().toISOString()
-    };
-
-    // DEBUG: Uncomment to check payload before sending
-    // console.log(payload);
-
-    // Send data to Google Sheets
-    fetch(WEB_APP_URL, {
-        method: "POST",
-        mode: "no-cors",   // allows sending to sheet without CORS issues
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    })
-    .then(() => {
-        alert("Your quiz was submitted successfully!");
-    })
-    .catch(err => {
-        console.error("Error submitting quiz:", err);
-        alert("Something went wrong while submitting your quiz.");
-    });
+    arr.push({ question, exactAnswer: correct.toString() });
+  }
+  return arr;
 }
+
+// ---------------- START QUIZ ----------------
+function startQuiz(type) {
+  currentType = type;
+  quizData = generateQuestions();
+
+  document.querySelectorAll(".quiz-btn").forEach(b => b.classList.remove("active"));
+  event.target.classList.add("active");
+
+  let html = "";
+  quizData.forEach((q,i)=>{
+    html += `
+      <div class="question-box">
+        <strong>Q${i+1}: ${q.question} = ?</strong>
+        <input inputmode="numeric" pattern="-?[0-9]*" class="answer" id="ans${i}" placeholder="Enter answer">
+      </div>
+    `;
+  });
+
+  document.getElementById("quizArea").innerHTML = html;
+}
+
+// ---------------- SUBMIT QUIZ ----------------
+function submitQuiz() {
+  let name = document.getElementById("studentName").value.trim();
+  if (!name) return alert("Please enter your name.");
+
+  let score = 0;
+  let answerArray = [];
+
+  quizData.forEach((q,i)=>{
+    let userVal = document.getElementById("ans"+i).value.trim();
+    let correct = q.exactAnswer;
+    let isCorrect = (userVal === correct);
+
+    if (isCorrect) score++;
+
+    answerArray.push({
+      question: q.question,
+      userAnswer: userVal || "(blank)",
+      correctAnswer: correct,
+      isCorrect: isCorrect ? "YES" : "NO"
+    });
+
+    document.getElementById("ans"+i).classList.add(isCorrect ? "correct" : "incorrect");
+  });
+
+  document.getElementById("results").style.display = "block";
+  document.getElementById("results").innerHTML =
+    `<h2>Your Score: ${score}/20</h2><p>Saved to Google Sheets ✔</p>`;
+
+  sendToSheet(name, score, answerArray);
+}
+
+// ---------------- SEND TO GOOGLE SHEET ----------------
+function sendToSheet(name, score, answers) {
+  fetch(GOOGLE_WEBAPP_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      name: name,
+      totalScore: score,
+      timestamp: new Date().toISOString(),
+      answers: answers
+    })
+  })
+  .then(r => r.json())
+  .then(d => console.log("SAVED:", d))
+  .catch(e => console.error("ERROR:", e));
+}
+
+// Load quiz default
+startQuiz("mixed");
