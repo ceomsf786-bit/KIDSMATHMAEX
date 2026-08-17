@@ -282,3 +282,46 @@ footer{padding:17px;text-align:center;color:#64748b;background:#f8fafc;border-to
   .fraction-answer-wrap{align-items:center}
   .table-actions{min-width:220px}
 }
+
+/* V6 weekly competition, teacher preview and critical thinking */
+.compact-topics{grid-template-columns:repeat(3,1fr)}
+.learner-stats-grid{grid-template-columns:repeat(3,1fr)}
+.assignment-editor-grid{grid-template-columns:1.15fr 1fr .9fr 1.15fr 90px 120px 120px auto auto auto}
+.assignment-preview{margin:14px 0 22px;padding:18px;border:2px solid #c7d2fe;border-radius:16px;background:linear-gradient(180deg,#eef2ff,#fff)}
+.preview-heading{align-items:flex-start}
+.preview-question-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.preview-question{padding:14px;border:1px solid #dbe3ef;border-radius:13px;background:#fff}
+.preview-question>span{display:block;margin-bottom:6px;color:#6366f1;font-size:.72rem;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
+.preview-question>div{font-size:1.08rem;font-weight:850;color:var(--ink)}
+.weekly-label{display:inline-flex;margin-top:8px;padding:7px 11px;border-radius:999px;background:#eef2ff;color:#4338ca;font-weight:900}
+.logic-sequence,.logic-equation{display:inline-block;font-size:1.18em;font-weight:950;letter-spacing:.02em}
+.number-machine{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.number-machine>*{padding:7px 10px;border-radius:10px;background:#eef2ff;color:#3730a3}
+.number-machine b:first-child{background:#dcfce7;color:#166534}
+.number-machine b:last-child{background:#fef3c7;color:#92400e}
+.table-actions{min-width:215px}
+
+.champion-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(15,10,45,.88);backdrop-filter:blur(6px)}
+.champion-overlay.hidden{display:none!important}
+.champion-card{position:relative;width:min(92vw,620px);max-height:94vh;overflow:auto;border:3px solid #facc15;border-radius:28px;background:#17133f;box-shadow:0 28px 80px rgba(0,0,0,.5);text-align:center}
+.champion-card img{display:block;width:100%;height:auto;max-height:68vh;object-fit:contain;background:#17133f}
+.champion-copy{padding:18px 22px 24px;color:white;background:linear-gradient(180deg,#221951,#11102f)}
+.champion-copy h2{margin:3px 0 6px;font-size:clamp(2rem,8vw,3.6rem);color:#fde047;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+.champion-copy strong{display:block;margin-bottom:5px;font-size:1.25rem}
+.champion-copy p{margin:6px 0 14px}
+.champion-close{position:absolute;right:12px;top:12px;z-index:2;width:42px;height:42px;border:2px solid rgba(255,255,255,.7);border-radius:999px;background:rgba(15,23,42,.8);color:white;font-size:1.7rem;line-height:1;cursor:pointer}
+
+@media(max-width:1100px){
+  .assignment-editor-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:760px){
+  .compact-topics{grid-template-columns:1fr 1fr}
+  .preview-question-grid{grid-template-columns:1fr}
+  .assignment-editor-grid{grid-template-columns:1fr}
+  .champion-card{width:min(96vw,560px)}
+}
+@media(max-width:460px){
+  .compact-topics,.learner-stats-grid{grid-template-columns:1fr}
+  .champion-overlay{padding:8px}
+  .champion-copy{padding:14px}
+}

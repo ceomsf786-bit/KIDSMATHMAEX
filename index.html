@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#4f46e5">
   <meta name="description" content="SNT Dynamic Math practice for Grades 1 to 6">
   <title>SNT Dynamic Math</title>
-  <link rel="stylesheet" href="styles.css?v=5.0-beta">
+  <link rel="stylesheet" href="styles.css?v=6.0-weekly">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
-  <script src="config.js?v=5.0-beta"></script>
-  <script src="app.js?v=5.0-beta" defer></script>
+  <script src="config.js?v=6.0-weekly"></script>
+  <script src="app.js?v=6.0-weekly" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -37,7 +37,7 @@
     <main>
       <section id="practicePage" class="page">
         <section id="setupWarning" class="notice warning hidden">
-          <strong>Setup needed:</strong> Add your Supabase URL and publishable key in <code>config.js</code>, then run <code>supabase-setup.sql</code>.
+          <strong>Setup needed:</strong> Add your Supabase URL and publishable key in <code>config.js</code>, then run the numbered Supabase setup / upgrade SQL files supplied with this version.
         </section>
 
         <section class="panel learner-panel">
@@ -86,6 +86,7 @@
             <div class="topic-tab" data-topic="decimals"><span class="topic-icon">0.5</span><span>Decimals</span><small>Grade 4+</small></div>
             <div class="topic-tab" data-topic="measurement"><span class="topic-icon">📏</span><span>Conversions</span><small>Length • Mass • Capacity</small></div>
             <div class="topic-tab" data-topic="percent"><span class="topic-icon">%</span><span>% • Fraction • Decimal</span><small>Grade 5+</small></div>
+            <div class="topic-tab" data-topic="critical"><span class="topic-icon">🧩</span><span>Critical Thinking</span><small>Patterns • Logic • Number machines</small></div>
           </div>
 
           <div id="allocationWaiting" class="notice info">Log in above to load the teacher’s allocated quizzes.</div>
@@ -175,6 +176,7 @@
                 <option value="decimals">Decimals</option>
                 <option value="measurement">Conversions</option>
                 <option value="percent">% • Fraction • Decimal</option>
+                <option value="critical">Critical Thinking Skills</option>
               </select>
               <button type="button" class="primary-btn small-btn" onclick="loadMyResults()">Refresh</button>
               <button type="button" class="ghost-btn small-btn" onclick="showPage('practice')">Back to practice</button>
@@ -184,8 +186,9 @@
               <article class="stat-card"><span>Quizzes completed</span><strong id="myQuizCount">0</strong></article>
               <article class="stat-card"><span>Latest score</span><strong id="myLatestScore">0%</strong></article>
               <article class="stat-card"><span>Best score</span><strong id="myBestScore">0%</strong></article>
-              <article class="stat-card"><span>Average</span><strong id="myAverageScore">0%</strong></article>
-              <article class="stat-card"><span>Overall position</span><strong id="myOverallRank">—</strong></article>
+              <article class="stat-card"><span>All-time average</span><strong id="myAverageScore">0%</strong></article>
+              <article class="stat-card"><span>This week average</span><strong id="myWeeklyAverage">0%</strong></article>
+              <article class="stat-card"><span>This week position</span><strong id="myOverallRank">—</strong></article>
             </div>
 
             <div class="table-wrap">
@@ -205,7 +208,8 @@
             <div>
               <p class="eyebrow dark">SNT MATH CHAMPIONS</p>
               <h2>Leaderboard</h2>
-              <p class="help-text">Nicknames only. Rankings use average score, then best score, quizzes completed and average time.</p>
+              <p class="help-text">Nicknames only. Medals reset every Monday and are decided only by the current Monday–Friday average. All-time average and best score remain visible.</p>
+              <p id="leaderboardWeekLabel" class="weekly-label">Weekly competition</p>
             </div>
             <button type="button" class="primary-btn small-btn" onclick="loadLeaderboard()">Refresh</button>
           </div>
@@ -218,6 +222,7 @@
               <option value="decimals">Decimals</option>
               <option value="measurement">Conversions</option>
               <option value="percent">% • Fraction • Decimal</option>
+              <option value="critical">Critical Thinking Skills</option>
             </select></label>
             <label>Grade<select id="leaderboardGradeFilter" onchange="loadLeaderboard()">
               <option value="all">All grades</option>
@@ -229,7 +234,7 @@
           <div id="leaderboardPodium" class="leaderboard-podium"></div>
           <div class="table-wrap">
             <table class="leaderboard-table">
-              <thead><tr><th>Position</th><th>Learner</th><th>Grade</th><th>Average</th><th>Best</th><th>Completed</th><th>Average time</th></tr></thead>
+              <thead><tr><th>Position</th><th>Learner</th><th>Grade</th><th>This week avg</th><th>All-time avg</th><th>All-time best</th><th>This week completed</th><th>Avg time this week</th></tr></thead>
               <tbody id="leaderboardBody"></tbody>
             </table>
             <div id="leaderboardMessage" class="table-message">Loading leaderboard…</div>
@@ -280,6 +285,7 @@
                 <option value="decimals">Decimals</option>
                 <option value="measurement">Conversions</option>
                 <option value="percent">% • Fraction • Decimal</option>
+                <option value="critical">Critical Thinking Skills</option>
               </select>
               <button type="button" class="primary-btn small-btn" onclick="loadTeacherScores()">Refresh</button>
               <button type="button" class="success-btn small-btn" onclick="downloadScoresCsv()">Download CSV</button>
@@ -328,23 +334,33 @@
                 <option value="decimals">Decimals</option>
                 <option value="measurement">Conversions</option>
                 <option value="percent">% • Fraction • Decimal</option>
+                <option value="critical">Critical Thinking Skills</option>
               </select></label>
               <label>Quiz type<select id="assignMode" onchange="updateDigitControls()"></select></label>
               <label>Questions<select id="assignQuestionCount"><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20" selected>20</option></select></label>
               <label id="firstDigitsLabel">Digits in first number<select id="assignFirstDigits"></select></label>
               <label id="secondDigitsLabel">Digits in second number<select id="assignSecondDigits"></select></label>
+              <button id="previewAssignmentBtn" type="button" class="primary-btn align-end" onclick="previewTeacherAssignment()">Preview questions</button>
               <button id="addAssignmentBtn" type="button" class="success-btn align-end" onclick="addTeacherAssignment()">Add to queue</button>
               <button id="cancelAssignmentEditBtn" type="button" class="ghost-btn align-end hidden" onclick="cancelAssignmentEdit()">Cancel edit</button>
             </div>
             <input id="editAssignmentId" type="hidden">
             <p id="assignmentEditorMessage" class="form-message"></p>
 
+            <section id="assignmentPreviewPanel" class="assignment-preview hidden">
+              <div class="panel-heading preview-heading">
+                <div><p class="eyebrow dark">QUESTION PREVIEW</p><h3 id="assignmentPreviewHeading">Preview</h3><p id="assignmentPreviewMeta" class="help-text"></p></div>
+                <button type="button" class="ghost-btn small-btn" onclick="closeAssignmentPreview()">Close preview</button>
+              </div>
+              <div id="assignmentPreviewQuestions" class="preview-question-grid"></div>
+            </section>
+
             <div id="assignmentLearnerSummary" class="allocation-teacher-summary">Select a learner to view the allocated order.</div>
 
             <h3>Waiting quizzes</h3>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Order</th><th>Optional title</th><th>Topic</th><th>Quiz type</th><th>Questions</th><th>Number sizes</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Order</th><th>Quiz name</th><th>Topic</th><th>Subtopic / quiz type</th><th>Questions</th><th>Number sizes</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody id="waitingAssignmentsBody"></tbody>
               </table>
               <div id="assignmentsMessage" class="table-message">Select a learner.</div>
@@ -354,7 +370,7 @@
               <summary>Completed quizzes (<span id="completedAssignmentCount">0</span>)</summary>
               <div class="table-wrap completed-table-wrap">
                 <table>
-                  <thead><tr><th>Order</th><th>Optional title</th><th>Topic</th><th>Quiz type</th><th>Questions</th><th>Number sizes</th><th>Completed</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Order</th><th>Quiz name</th><th>Topic</th><th>Subtopic / quiz type</th><th>Questions</th><th>Number sizes</th><th>Completed</th><th>Actions</th></tr></thead>
                   <tbody id="completedAssignmentsBody"></tbody>
                 </table>
                 <div id="completedAssignmentsMessage" class="table-message">No completed quizzes yet.</div>
@@ -389,6 +405,20 @@
         </section>
       </section>
     </main>
+
+    <section id="weeklyChampionOverlay" class="champion-overlay hidden" aria-hidden="true" aria-live="polite">
+      <div class="champion-card">
+        <button type="button" class="champion-close" aria-label="Close weekly champion celebration" onclick="closeWeeklyChampionCelebration()">×</button>
+        <img id="weeklyChampionImage" src="weekly-champion.gif" alt="Weekly champion trophy with confetti">
+        <div class="champion-copy">
+          <p class="eyebrow">THIS WEEK'S GRADE CHAMPION</p>
+          <h2 id="weeklyChampionName">Champion</h2>
+          <strong id="weeklyChampionScore">0% weekly average</strong>
+          <p id="weeklyChampionWeek"></p>
+          <button type="button" class="light-btn" onclick="closeWeeklyChampionCelebration()">Awesome! 🎉</button>
+        </div>
+      </div>
+    </section>
 
     <footer>
       <p>Made for SNT Tutoring • Learner codes are never displayed in reports.</p>

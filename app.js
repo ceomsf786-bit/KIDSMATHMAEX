@@ -1,13 +1,14 @@
 "use strict";
 
 const CONFIG = window.SNT_MATH_CONFIG || {};
-const MIN_GRADE = Object.freeze({ operations: 1, fractions: 3, decimals: 4, measurement: 2, percent: 5 });
+const MIN_GRADE = Object.freeze({ operations: 1, fractions: 3, decimals: 4, measurement: 2, percent: 5, critical: 1 });
 const TOPIC_LABELS = Object.freeze({
   operations: "Number Operations",
   fractions: "Fractions",
   decimals: "Decimals",
   measurement: "Conversions",
-  percent: "% • Fraction • Decimal"
+  percent: "% • Fraction • Decimal",
+  critical: "Critical Thinking Skills"
 });
 const MODE_LABELS = Object.freeze({
   add: "Addition", subtract: "Subtraction", multiply: "Multiplication", divide: "Division", mixed: "Mixed",
@@ -15,7 +16,11 @@ const MODE_LABELS = Object.freeze({
   add_same: "Addition — Same Denominators",
   subtract_same: "Subtraction — Same Denominators",
   add_different: "Addition — Different Denominators",
-  subtract_different: "Subtraction — Different Denominators"
+  subtract_different: "Subtraction — Different Denominators",
+  patterns: "Patterns & Sequences",
+  missing: "Missing Number Logic",
+  balance: "Balance the Equation",
+  machines: "Number Machines"
 });
 const UNIT_LABELS = Object.freeze({ mm: "mm", cm: "cm", m: "m", km: "km", mL: "mL", L: "L", g: "g", kg: "kg" });
 
@@ -30,6 +35,7 @@ const state = {
   operationMode: "mixed",
   measurementMode: "mixed",
   fractionMode: "mixed",
+  criticalMode: "mixed",
   questions: [],
   elapsedSeconds: 0,
   timerId: null,
@@ -46,9 +52,12 @@ const state = {
   teacherLearners: [],
   teacherAssignments: [],
   editingAssignmentId: null,
+  assignmentPreviewId: null,
+  assignmentPreviewFingerprint: "",
   learnerResults: [],
   leaderboardRows: [],
-  overallLeaderboardRows: []
+  overallLeaderboardRows: [],
+  weeklyChampion: null
 };
 
 window.addEventListener("DOMContentLoaded", initialiseApp);
@@ -93,6 +102,11 @@ function bindStaticEvents() {
   });
   document.getElementById("teacherPassword").addEventListener("keydown", event => {
     if (event.key === "Enter") teacherSignIn();
+  });
+  ["assignStudent","assignTitle","assignTopic","assignMode","assignQuestionCount","assignFirstDigits","assignSecondDigits"].forEach(id => {
+    const control = document.getElementById(id);
+    if (!control) return;
+    control.addEventListener(id === "assignTitle" ? "input" : "change", () => closeAssignmentPreview(true));
   });
 }
 
@@ -147,6 +161,8 @@ function clearLearnerVerification() {
   state.currentAssignment = null;
   state.activeAssignment = null;
   state.learnerResults = [];
+  state.weeklyChampion = null;
+  closeWeeklyChampionCelebration();
   stopTimer();
   const status = document.getElementById("learnerStatus");
   status.textContent = "Not verified";
@@ -198,8 +214,11 @@ async function verifyLearner() {
     document.getElementById("verifiedLearnerMessage").textContent = `Welcome, ${learner.display_name}! Loading your teacher’s quiz plan…`;
     card.classList.remove("hidden");
     document.getElementById("myResultsHeading").textContent = `${learner.display_name}’s results`;
+    const leaderboardGrade = document.getElementById("leaderboardGradeFilter");
+    if (leaderboardGrade) leaderboardGrade.value = String(learner.grade);
     updateTopicAvailability();
     await Promise.all([loadLearnerQueue(true), loadMyResults(false), loadLeaderboard(false), loadOverallLeaderboard()]);
+    await checkWeeklyChampionCelebration();
   } catch (error) {
     console.error(error);
     clearLearnerVerification();
@@ -313,6 +332,7 @@ function assignmentModeLabel(assignment) {
     if (assignment?.topic === "measurement") return "Mixed Conversions";
     if (assignment?.topic === "decimals") return "Mixed Decimals";
     if (assignment?.topic === "percent") return "Mixed % / Fraction / Decimal";
+    if (assignment?.topic === "critical") return "Mixed Critical Thinking";
   }
   return MODE_LABELS[assignment?.mode] || assignment?.mode || "Mixed";
 }
@@ -357,6 +377,7 @@ function applyAssignmentToState(assignment) {
   state.operationMode = assignment.topic === "operations" ? assignment.mode : "mixed";
   state.measurementMode = assignment.topic === "measurement" ? assignment.mode : "mixed";
   state.fractionMode = assignment.topic === "fractions" ? assignment.mode : "mixed";
+  state.criticalMode = assignment.topic === "critical" ? assignment.mode : "mixed";
 }
 
 function startQuiz() {
@@ -405,7 +426,8 @@ function topicInstruction(topic) {
     fractions: "Use the numerator above the line and the denominator below the line.",
     decimals: "Remember place value and line up decimal points carefully.",
     measurement: "Write only the number. The unit is already shown for you.",
-    percent: "Move between percentages, fractions and decimals using the notation shown."
+    percent: "Move between percentages, fractions and decimals using the notation shown.",
+    critical: "Think carefully about the pattern or relationship before choosing your answer."
   }[topic];
 }
 
@@ -559,6 +581,7 @@ async function sendSubmission() {
     }
     await Promise.all([loadMyResults(false), loadLeaderboard(false), loadOverallLeaderboard()]);
     showCurrentLearnerRank();
+    await checkWeeklyChampionCelebration();
     if (state.teacherUser) {
       loadTeacherScores(false);
       loadTeacherAssignments(false);
@@ -673,6 +696,7 @@ function currentMode() {
   if (state.topic === "operations") return state.operationMode;
   if (state.topic === "measurement") return state.measurementMode;
   if (state.topic === "fractions") return state.fractionMode;
+  if (state.topic === "critical") return state.criticalMode;
   return "mixed";
 }
 
@@ -682,7 +706,8 @@ function generateQuestions(topic, grade, count) {
     fractions: generateFractionQuestion,
     decimals: generateDecimalQuestion,
     measurement: generateMeasurementQuestion,
-    percent: generatePercentQuestion
+    percent: generatePercentQuestion,
+    critical: generateCriticalThinkingQuestion
   }[topic];
   const questions = [];
   const signatures = new Set();
@@ -1005,6 +1030,102 @@ function generatePercentQuestion(grade, index) {
   return fractionQuestion(kind, { value: item.decimal }, `${formatNumber(item.decimal)} = ${fractionHtml("?", "?")}`, `${item.decimal} to fraction`);
 }
 
+
+function generateCriticalThinkingQuestion(grade, index) {
+  let mode = state.criticalMode || "mixed";
+  const allowed = grade === 1
+    ? ["patterns", "missing"]
+    : grade === 2
+      ? ["patterns", "missing", "balance"]
+      : ["patterns", "missing", "balance", "machines"];
+  if (mode === "mixed" || !allowed.includes(mode)) mode = allowed[index % allowed.length];
+
+  if (mode === "patterns") {
+    const terms = grade <= 2 ? 4 : 5;
+    const maxStep = grade === 1 ? 5 : grade === 2 ? 10 : grade <= 4 ? 20 : 50;
+    let step = randomInt(1, maxStep);
+    let start = randomInt(grade === 1 ? 1 : 0, grade <= 2 ? 40 : grade <= 4 ? 150 : 500);
+    if (grade >= 4 && questionRandom() < 0.25) {
+      step = -step;
+      start = randomInt(Math.abs(step) * terms + 5, grade <= 4 ? 200 : 600);
+    }
+    const shown = Array.from({ length: terms }, (_, i) => start + (i * step));
+    return numberQuestion(
+      "critical_pattern_next",
+      { start, step, terms },
+      `<span class="logic-sequence">${shown.map(formatWhole).join(" , ")} , ?</span>`,
+      `${shown.join(", ")}, ?`
+    );
+  }
+
+  if (mode === "missing") {
+    const operations = grade <= 2 ? ["add", "subtract"] : ["add", "subtract", "multiply", "divide"];
+    const operation = operations[index % operations.length];
+    const missing = questionRandom() < 0.5 ? "a" : "b";
+    let a;
+    let b;
+    let result;
+    let symbol;
+
+    if (operation === "add") {
+      const max = grade === 1 ? 20 : grade === 2 ? 100 : Math.min(1000, 10 ** Math.min(grade, 3));
+      a = randomInt(1, Math.max(2, Math.floor(max * 0.7)));
+      b = randomInt(1, Math.max(2, max - a));
+      result = a + b;
+      symbol = "+";
+    } else if (operation === "subtract") {
+      const max = grade === 1 ? 20 : grade === 2 ? 100 : 1000;
+      a = randomInt(2, max);
+      b = randomInt(1, a);
+      result = a - b;
+      symbol = "−";
+    } else if (operation === "multiply") {
+      a = randomInt(2, grade >= 5 ? 20 : 12);
+      b = randomInt(2, grade >= 5 ? 12 : 10);
+      result = a * b;
+      symbol = "×";
+    } else {
+      b = randomInt(2, grade >= 5 ? 12 : 10);
+      result = randomInt(2, grade >= 5 ? 20 : 12);
+      a = b * result;
+      symbol = "÷";
+    }
+
+    const leftA = missing === "a" ? "?" : formatWhole(a);
+    const leftB = missing === "b" ? "?" : formatWhole(b);
+    return numberQuestion(
+      "critical_missing_number",
+      { operation, a, b, missing },
+      `<span class="logic-equation">${leftA} ${symbol} ${leftB} = ${formatWhole(result)}</span>`,
+      `${missing === "a" ? "?" : a} ${symbol} ${missing === "b" ? "?" : b} = ${result}`
+    );
+  }
+
+  if (mode === "balance") {
+    const max = grade === 2 ? 50 : grade <= 4 ? 200 : 1000;
+    const a = randomInt(2, Math.floor(max * 0.6));
+    const b = randomInt(2, Math.floor(max * 0.4));
+    const total = a + b;
+    const c = randomInt(1, Math.max(1, total - 1));
+    return numberQuestion(
+      "critical_balance",
+      { a, b, c },
+      `<span class="logic-equation">${formatWhole(a)} + ${formatWhole(b)} = ${formatWhole(c)} + ?</span>`,
+      `${a} + ${b} = ${c} + ?`
+    );
+  }
+
+  const multiplier = randomInt(2, grade <= 3 ? 5 : grade <= 4 ? 8 : 12);
+  const addend = randomInt(0, grade <= 3 ? 10 : grade <= 4 ? 20 : 50);
+  const input = randomInt(1, grade <= 3 ? 12 : grade <= 4 ? 20 : 50);
+  return numberQuestion(
+    "critical_number_machine",
+    { input, multiplier, addend },
+    `<span class="number-machine"><b>INPUT ${formatWhole(input)}</b><span>× ${multiplier}</span><span>+ ${addend}</span><b>OUTPUT ?</b></span>`,
+    `Number machine: ${input} × ${multiplier} + ${addend}`
+  );
+}
+
 function numberQuestion(kind, params, promptHtml, promptText) {
   return { kind, params, promptHtml, promptText, answerType: "number", choices: [] };
 }
@@ -1294,6 +1415,12 @@ function updateAssignmentModeOptions() {
     }
   } else if (topic === "decimals") {
     options = [["mixed","Mixed decimals"]];
+  } else if (topic === "percent") {
+    options = [["mixed","Mixed % / Fraction / Decimal"]];
+  } else if (topic === "critical") {
+    options = [["mixed","Mixed critical thinking"], ["patterns","Patterns & sequences"], ["missing","Missing number logic"]];
+    if (grade >= 2) options.push(["balance","Balance the equation"]);
+    if (grade >= 3) options.push(["machines","Number machines"]);
   } else {
     options = [["mixed","Mixed conversions"]];
   }
@@ -1354,7 +1481,7 @@ function renderTeacherAssignments() {
   waiting.forEach(assignment => {
     const tr = document.createElement("tr");
     addCell(tr, assignment.position);
-    addCell(tr, assignment.title || "—");
+    addCell(tr, assignmentFullDisplayName(assignment));
     addCell(tr, TOPIC_LABELS[assignment.topic] || assignment.topic);
     addCell(tr, assignmentModeLabel(assignment));
     addCell(tr, assignment.question_count);
@@ -1366,7 +1493,6 @@ function renderTeacherAssignments() {
     const actions = document.createElement("td");
     actions.className = "table-actions";
     actions.append(
-      actionButton("Quiz PDF", "Download the exact allocated questions", () => downloadAllocatedQuizPdf(assignment), "pdf-action"),
       actionButton("Edit", "Edit this waiting quiz", () => editTeacherAssignment(assignment), "edit-action"),
       actionButton("↑", "Move earlier", () => moveTeacherAssignment(assignment.id, "up")),
       actionButton("↓", "Move later", () => moveTeacherAssignment(assignment.id, "down")),
@@ -1379,7 +1505,7 @@ function renderTeacherAssignments() {
   completed.forEach(assignment => {
     const tr = document.createElement("tr");
     addCell(tr, `✓ ${assignment.position}`);
-    addCell(tr, assignment.title || "—");
+    addCell(tr, assignmentFullDisplayName(assignment));
     addCell(tr, TOPIC_LABELS[assignment.topic] || assignment.topic);
     addCell(tr, assignmentModeLabel(assignment));
     addCell(tr, assignment.question_count);
@@ -1417,6 +1543,104 @@ function actionButton(text, title, handler, extraClass = "") {
   return button;
 }
 
+
+function readTeacherAssignmentDraft() {
+  const studentId = document.getElementById("assignStudent")?.value || "";
+  const learner = state.teacherLearners.find(item => item.id === studentId);
+  const topic = document.getElementById("assignTopic")?.value || "operations";
+  const mode = document.getElementById("assignMode")?.value || "mixed";
+  const questionCount = Number(document.getElementById("assignQuestionCount")?.value || 20);
+  const firstDigits = topic === "operations" ? Number(document.getElementById("assignFirstDigits")?.value || 1) : null;
+  const secondDigits = topic === "operations" ? Number(document.getElementById("assignSecondDigits")?.value || 1) : null;
+  const title = cleanText(document.getElementById("assignTitle")?.value || "", 80);
+  return { studentId, learner, topic, mode, questionCount, firstDigits, secondDigits, title };
+}
+
+function teacherAssignmentDraftError(draft) {
+  const { learner, topic, mode, questionCount, firstDigits, secondDigits } = draft;
+  if (!learner) return "Select a learner first.";
+  if (!TOPIC_LABELS[topic]) return "Choose a valid topic.";
+  if (![5,10,15,20].includes(questionCount)) return "Choose 5, 10, 15 or 20 questions.";
+  if (Number(learner.grade) < MIN_GRADE[topic]) return `${TOPIC_LABELS[topic]} starts in Grade ${MIN_GRADE[topic]}.`;
+  if (Number(learner.grade) === 1 && topic === "operations" && ["multiply","divide"].includes(mode)) return "Grade 1 cannot use multiplication or division.";
+  if (topic === "fractions" && Number(learner.grade) < 4 && mode !== "mixed") return "Grade 3 uses mixed basic fraction skills.";
+  if (topic === "fractions" && Number(learner.grade) < 5 && ["add_different","subtract_different"].includes(mode)) return "Different-denominator fractions start from Grade 5.";
+  if (topic === "critical" && Number(learner.grade) < 2 && mode === "balance") return "Balance-the-equation critical thinking starts from Grade 2.";
+  if (topic === "critical" && Number(learner.grade) < 3 && mode === "machines") return "Number machines start from Grade 3.";
+  if (topic === "operations" && ["subtract","divide","mixed"].includes(mode) && firstDigits < secondDigits) return "The first number must have at least as many digits as the second number.";
+  return "";
+}
+
+function assignmentDraftFingerprint(draft) {
+  return JSON.stringify({
+    studentId: draft.studentId,
+    title: draft.title,
+    topic: draft.topic,
+    mode: draft.mode,
+    questionCount: draft.questionCount,
+    firstDigits: draft.firstDigits,
+    secondDigits: draft.secondDigits
+  });
+}
+
+function previewTeacherAssignment() {
+  const draft = readTeacherAssignmentDraft();
+  const errorText = teacherAssignmentDraftError(draft);
+  const message = document.getElementById("assignmentEditorMessage");
+  if (errorText) return setFormMessage(message, errorText, false);
+
+  try {
+    const fingerprint = assignmentDraftFingerprint(draft);
+    let previewId = state.editingAssignmentId || null;
+    if (!previewId) {
+      if (state.assignmentPreviewFingerprint === fingerprint && state.assignmentPreviewId) previewId = state.assignmentPreviewId;
+      else previewId = createAttemptToken();
+    }
+    state.assignmentPreviewId = previewId;
+    state.assignmentPreviewFingerprint = fingerprint;
+    const previewAssignment = {
+      assignment_id: previewId,
+      id: previewId,
+      student_id: draft.studentId,
+      title: draft.title || null,
+      topic: draft.topic,
+      mode: draft.mode,
+      question_count: draft.questionCount,
+      first_number_digits: draft.firstDigits,
+      second_number_digits: draft.secondDigits,
+      status: "pending"
+    };
+    const questions = generateQuestionsForAssignment(previewAssignment, draft.learner.grade);
+    const panel = document.getElementById("assignmentPreviewPanel");
+    const heading = document.getElementById("assignmentPreviewHeading");
+    const meta = document.getElementById("assignmentPreviewMeta");
+    const list = document.getElementById("assignmentPreviewQuestions");
+    heading.textContent = assignmentFullDisplayName(previewAssignment);
+    meta.textContent = `${draft.learner.display_name} • Grade ${draft.learner.grade} • ${draft.questionCount} questions • Preview before allocation`;
+    list.innerHTML = "";
+    questions.forEach((question, index) => {
+      const item = document.createElement("article");
+      item.className = "preview-question";
+      item.innerHTML = `<span>Question ${index + 1}</span><div>${question.promptHtml}</div>`;
+      list.appendChild(item);
+    });
+    panel.classList.remove("hidden");
+    setFormMessage(message, state.editingAssignmentId ? "Preview ready. Saving these settings keeps this exact edited question set." : "Preview ready. If you add this quiz without changing the settings, the learner will receive these exact questions.", true);
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (error) {
+    console.error(error);
+    setFormMessage(message, error.message || "The question preview could not be generated.", false);
+  }
+}
+
+function closeAssignmentPreview(resetSeed = false) {
+  document.getElementById("assignmentPreviewPanel")?.classList.add("hidden");
+  if (resetSeed) {
+    state.assignmentPreviewId = null;
+    state.assignmentPreviewFingerprint = "";
+  }
+}
+
 async function addTeacherAssignment() {
   if (!db || !state.teacherUser) return;
   const studentId = document.getElementById("assignStudent").value;
@@ -1441,6 +1665,12 @@ async function addTeacherAssignment() {
   if (topic === "fractions" && Number(learner.grade) < 5 && ["add_different", "subtract_different"].includes(mode)) {
     return setFormMessage(message, "Different-denominator fraction quizzes start from Grade 5.", false);
   }
+  if (topic === "critical" && Number(learner.grade) < 2 && mode === "balance") {
+    return setFormMessage(message, "Balance-the-equation critical thinking starts from Grade 2.", false);
+  }
+  if (topic === "critical" && Number(learner.grade) < 3 && mode === "machines") {
+    return setFormMessage(message, "Number-machine critical thinking starts from Grade 3.", false);
+  }
   if (topic === "operations" && ["subtract", "divide", "mixed"].includes(mode) && firstDigits < secondDigits) {
     return setFormMessage(message, "For subtraction, division or mixed quizzes, the first number must have at least as many digits as the second number.", false);
   }
@@ -1449,7 +1679,12 @@ async function addTeacherAssignment() {
   button.disabled = true;
   button.textContent = editingId ? "Saving…" : "Adding…";
   try {
-    const rpcName = editingId ? "teacher_update_math_assignment_v5" : "teacher_create_math_assignment_v5";
+    const currentDraft = { studentId, learner, topic, mode, questionCount, firstDigits, secondDigits, title };
+    const fingerprint = assignmentDraftFingerprint(currentDraft);
+    const newAssignmentId = state.assignmentPreviewFingerprint === fingerprint && state.assignmentPreviewId
+      ? state.assignmentPreviewId
+      : createAttemptToken();
+    const rpcName = editingId ? "teacher_update_math_assignment_v5" : "teacher_create_math_assignment_v6";
     const rpcParams = editingId ? {
       p_assignment_id: editingId,
       p_title: title || null,
@@ -1459,6 +1694,7 @@ async function addTeacherAssignment() {
       p_first_number_digits: firstDigits,
       p_second_number_digits: secondDigits
     } : {
+      p_assignment_id: newAssignmentId,
       p_group_id: CONFIG.groupId,
       p_student_id: studentId,
       p_title: title || null,
@@ -1471,6 +1707,7 @@ async function addTeacherAssignment() {
     const { error } = await db.rpc(rpcName, rpcParams);
     if (error) throw error;
     setFormMessage(message, editingId ? "Allocated quiz updated." : "Quiz added to the end of the learner’s queue.", true);
+    closeAssignmentPreview(true);
     cancelAssignmentEdit(true);
     await loadTeacherAssignments(false);
   } catch (error) {
@@ -1526,6 +1763,7 @@ function editTeacherAssignment(assignment) {
 }
 
 function cancelAssignmentEdit(keepMessage = false) {
+  closeAssignmentPreview(true);
   state.editingAssignmentId = null;
   document.getElementById("editAssignmentId").value = "";
   document.getElementById("assignStudent").disabled = false;
@@ -1621,7 +1859,8 @@ function generateQuestionsForAssignment(assignment, grade) {
     topic: state.topic,
     operationMode: state.operationMode,
     measurementMode: state.measurementMode,
-    fractionMode: state.fractionMode
+    fractionMode: state.fractionMode,
+    criticalMode: state.criticalMode
   };
   const normalised = { ...assignment, assignment_id: assignment.assignment_id || assignment.id };
   try {
@@ -1634,6 +1873,7 @@ function generateQuestionsForAssignment(assignment, grade) {
     state.operationMode = snapshot.operationMode;
     state.measurementMode = snapshot.measurementMode;
     state.fractionMode = snapshot.fractionMode;
+    state.criticalMode = snapshot.criticalMode;
   }
 }
 
@@ -1715,33 +1955,6 @@ function pdfSafeText(value) {
 function safeFileName(value) {
   const cleaned = pdfSafeText(value).replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   return `${cleaned || "snt-dynamic-math"}.pdf`;
-}
-
-async function downloadAllocatedQuizPdf(assignment) {
-  try {
-    const learner = state.teacherLearners.find(item => item.id === assignment.student_id);
-    if (!learner) throw new Error("The learner record could not be found.");
-    const questions = generateQuestionsForAssignment(assignment, learner.grade);
-    const writer = createPdfWriter(assignmentFullDisplayName(assignment));
-    writer.write("SNT DYNAMIC MATH", { size: 17, bold: true, after: 1 });
-    writer.write("ALLOCATED QUIZ PREVIEW", { size: 11, bold: true, after: 5 });
-    writer.write(`Learner: ${learner.full_name}`);
-    writer.write(`Grade: ${learner.grade}`);
-    writer.write(`Optional title: ${assignment.title || "None"}`);
-    writer.write(`Topic: ${TOPIC_LABELS[assignment.topic] || assignment.topic}`);
-    writer.write(`Quiz type: ${assignmentModeLabel(assignment)}`);
-    writer.write(`Questions: ${assignment.question_count}`);
-    if (assignment.topic === "operations") writer.write(`Number sizes: ${assignmentNumberSizeLabel(assignment)}`);
-    writer.rule();
-    questions.forEach((question, index) => {
-      writer.write(`${index + 1}. ${questionTextFromPayload(question)}`, { size: 11, bold: true, after: 2 });
-      writer.write("Answer: __________________________________________", { indent: 5, after: 5 });
-    });
-    finishAndSavePdf(writer, `${learner.display_name}-${assignmentFullDisplayName(assignment)}-allocated`);
-  } catch (error) {
-    console.error(error);
-    alert(error.message || "The allocated quiz PDF could not be created.");
-  }
 }
 
 async function downloadCompletedAssignmentPdf(assignment) {
@@ -1854,6 +2067,21 @@ function questionTextFromPayload(question) {
     case "percent_to_decimal": return `${p.percent}% = ? as a decimal`;
     case "fraction_to_decimal": return `${p.numerator}/${p.denominator} = ? as a decimal`;
     case "decimal_to_fraction": return `${p.value} = ? as a fraction`;
+    case "critical_pattern_next": {
+      const terms = Number(p.terms) || 4;
+      const shown = Array.from({ length: terms }, (_, i) => Number(p.start) + (i * Number(p.step)));
+      return `${shown.join(", ")}, ?`;
+    }
+    case "critical_missing_number": {
+      const symbol = ({ add: "+", subtract: "-", multiply: "x", divide: "/" })[p.operation] || "?";
+      const result = p.operation === "add" ? Number(p.a) + Number(p.b)
+        : p.operation === "subtract" ? Number(p.a) - Number(p.b)
+        : p.operation === "multiply" ? Number(p.a) * Number(p.b)
+        : Number(p.a) / Number(p.b);
+      return `${p.missing === "a" ? "?" : p.a} ${symbol} ${p.missing === "b" ? "?" : p.b} = ${result}`;
+    }
+    case "critical_balance": return `${p.a} + ${p.b} = ${p.c} + ?`;
+    case "critical_number_machine": return `Number machine: ${p.input} x ${p.multiplier} + ${p.addend} = ?`;
     default: return question?.promptText || "Maths question";
   }
 }
@@ -1932,7 +2160,7 @@ async function loadLeaderboard(showLoading = true) {
   const gradeValue = document.getElementById("leaderboardGradeFilter")?.value || "all";
   if (showLoading) setTableMessage("leaderboardMessage", "Loading leaderboard…");
   try {
-    const { data, error } = await db.rpc("get_math_leaderboard", {
+    const { data, error } = await db.rpc("get_math_weekly_leaderboard", {
       p_group_id: CONFIG.groupId,
       p_topic: topic,
       p_grade: gradeValue === "all" ? null : Number(gradeValue)
@@ -1949,7 +2177,7 @@ async function loadLeaderboard(showLoading = true) {
 async function loadOverallLeaderboard() {
   if (!db) return;
   try {
-    const { data, error } = await db.rpc("get_math_leaderboard", {
+    const { data, error } = await db.rpc("get_math_weekly_leaderboard", {
       p_group_id: CONFIG.groupId,
       p_topic: "all",
       p_grade: null
@@ -1962,17 +2190,65 @@ async function loadOverallLeaderboard() {
   }
 }
 
+
+async function checkWeeklyChampionCelebration() {
+  if (!db || !state.verifiedLearner || !state.learnerCode) return;
+  try {
+    const { data, error } = await db.rpc("get_math_weekly_champion_for_student", {
+      p_student_id: state.verifiedLearner.student_id,
+      p_student_code: state.learnerCode,
+      p_group_id: CONFIG.groupId
+    });
+    if (error) throw error;
+    const champion = Array.isArray(data) ? data[0] : data;
+    state.weeklyChampion = champion || null;
+    if (!champion?.ready || !champion?.is_winner) return;
+
+    const weekKey = cleanText(champion.week_start || "current-week", 30);
+    const storageKey = `snt-weekly-champion:${CONFIG.groupId}:${state.verifiedLearner.student_id}:${weekKey}`;
+    if (window.localStorage?.getItem(storageKey)) return;
+    showWeeklyChampionCelebration(champion);
+    try { window.localStorage?.setItem(storageKey, new Date().toISOString()); } catch {}
+  } catch (error) {
+    console.warn("Weekly champion check could not run:", error);
+  }
+}
+
+function showWeeklyChampionCelebration(champion) {
+  const overlay = document.getElementById("weeklyChampionOverlay");
+  if (!overlay) return;
+  document.getElementById("weeklyChampionName").textContent = champion.winner_display_name || state.verifiedLearner?.display_name || "Weekly Champion";
+  document.getElementById("weeklyChampionScore").textContent = `${Number(champion.winner_average_percentage) || 0}% weekly average`;
+  document.getElementById("weeklyChampionWeek").textContent = `Grade ${champion.grade} champion • ${formatWeekRange(champion.week_start, champion.week_end)}`;
+  const image = document.getElementById("weeklyChampionImage");
+  if (image) image.src = `weekly-champion.gif?week=${encodeURIComponent(champion.week_start || Date.now())}&play=${Date.now()}`;
+  overlay.classList.remove("hidden");
+  overlay.setAttribute("aria-hidden", "false");
+}
+
+function closeWeeklyChampionCelebration() {
+  const overlay = document.getElementById("weeklyChampionOverlay");
+  if (!overlay) return;
+  overlay.classList.add("hidden");
+  overlay.setAttribute("aria-hidden", "true");
+}
+
 function renderLeaderboard() {
   const body = document.getElementById("leaderboardBody");
   const podium = document.getElementById("leaderboardPodium");
   if (!body || !podium) return;
   body.innerHTML = "";
   podium.innerHTML = "";
+  const weekLabel = document.getElementById("leaderboardWeekLabel");
+  const sample = state.leaderboardRows[0];
+  if (weekLabel) weekLabel.textContent = sample
+    ? `Weekly competition: ${formatWeekRange(sample.week_start, sample.week_end)}`
+    : `Weekly competition: ${currentMondayFridayLabel()}`;
   const medals = ["🥇", "🥈", "🥉"];
   state.leaderboardRows.slice(0, 3).forEach((row, index) => {
     const card = document.createElement("article");
     card.className = `podium-card place-${index + 1}`;
-    card.innerHTML = `<div class="podium-medal">${medals[index]}</div><strong>${escapeHtml(row.display_name)}</strong><span>Grade ${row.grade}</span><b>${row.average_percentage}% average</b><small>${row.quizzes_completed} completed</small>`;
+    card.innerHTML = `<div class="podium-medal">${medals[index]}</div><strong>${escapeHtml(row.display_name)}</strong><span>Grade ${row.grade}</span><b>${row.weekly_average_percentage}% this week</b><small>${row.weekly_quizzes_completed} quiz${Number(row.weekly_quizzes_completed) === 1 ? "" : "zes"} this week</small>`;
     podium.appendChild(card);
   });
   state.leaderboardRows.forEach(row => {
@@ -1982,14 +2258,15 @@ function renderLeaderboard() {
     tr.appendChild(rankCell);
     addCell(tr, row.display_name);
     addCell(tr, `Grade ${row.grade}`);
-    addScoreCell(tr, Number(row.average_percentage) || 0);
-    addScoreCell(tr, Number(row.best_percentage) || 0);
-    addCell(tr, row.quizzes_completed);
-    addCell(tr, formatDuration(row.average_duration_seconds));
+    addScoreCell(tr, Number(row.weekly_average_percentage) || 0);
+    addScoreCell(tr, Number(row.all_time_average_percentage) || 0);
+    addScoreCell(tr, Number(row.all_time_best_percentage) || 0);
+    addCell(tr, row.weekly_quizzes_completed);
+    addCell(tr, formatDuration(row.weekly_average_duration_seconds));
     body.appendChild(tr);
   });
   showCurrentLearnerRank();
-  setTableMessage("leaderboardMessage", state.leaderboardRows.length ? "" : "No completed quizzes match these filters yet.");
+  setTableMessage("leaderboardMessage", state.leaderboardRows.length ? "" : "No quizzes have been completed in the current Monday-to-Friday competition yet.");
 }
 
 function rankLabel(position) {
@@ -2006,11 +2283,34 @@ function showCurrentLearnerRank() {
   const rankText = row ? rankLabel(row.rank_position) : "—";
   const stat = document.getElementById("myOverallRank");
   if (stat) stat.textContent = rankText;
+  const weeklyAverage = document.getElementById("myWeeklyAverage");
+  if (weeklyAverage) weeklyAverage.textContent = row ? `${Number(row.weekly_average_percentage) || 0}%` : "0%";
   const resultRank = document.getElementById("resultRank");
   if (resultRank && state.submitted && row) {
-    resultRank.textContent = `🏆 Overall leaderboard position: ${rankText}`;
+    resultRank.textContent = `🏆 This week’s leaderboard position: ${rankText}`;
     resultRank.classList.remove("hidden");
   }
+}
+
+function formatWeekRange(startValue, endValue) {
+  if (!startValue || !endValue) return currentMondayFridayLabel();
+  const start = new Date(`${startValue}T12:00:00`);
+  const end = new Date(`${endValue}T12:00:00`);
+  const fmt = new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short" });
+  return `${fmt.format(start)} – ${fmt.format(end)}`;
+}
+
+function currentMondayFridayLabel() {
+  const now = new Date();
+  const day = now.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setHours(12, 0, 0, 0);
+  monday.setDate(now.getDate() + mondayOffset);
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+  const fmt = new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short" });
+  return `${fmt.format(monday)} – ${fmt.format(friday)}`;
 }
 
 function renderTeacherLearners() {
